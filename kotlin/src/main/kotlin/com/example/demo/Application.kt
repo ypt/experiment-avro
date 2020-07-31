@@ -4,7 +4,9 @@ import example.avro.User
 import example.avro.User2
 import java.io.File
 import java.lang.Exception
+import java.nio.ByteBuffer
 import org.apache.avro.SchemaBuilder
+import org.apache.avro.SchemaNormalization
 import org.apache.avro.file.DataFileReader
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.GenericData
@@ -78,10 +80,21 @@ fun main(args: Array<String>) {
     // to include in every single message.
     //
     // For more information, see:
-    // - Avro spec: https://avro.apache.org/docs/current/spec.html#minitoc-area:~:text=effectively.-,Single%20object%20encoding%20specification
+    // - Avro spec: https://avro.apache.org/docs/current/spec.html#single_object_encoding_spec
     // - Java usage example: https://github.com/apache/avro/blob/master/lang/java/avro/src/test/java/org/apache/avro/message/TestBinaryMessageEncoding.java
     println("")
     println("### SINGLE OBJECT ENCODING / DECODING ###")
+
+    val fingerprintLong = SchemaNormalization.parsingFingerprint64(User.`SCHEMA$`)
+    val fingerprintBytes = SchemaNormalization.parsingFingerprint("CRC-64-AVRO", User.`SCHEMA$`)
+    println("parsingFingerprint64 of User schema as Long: $fingerprintLong") // -3588479540582100558
+    println("parsingFingerprint64 of User schema as binary string: ${toBinaryString(fingerprintLong)}") // 1100111000110011001010001101111011010011110110001101000110110010
+    println("parsingFingerprint of User schema as little endian byte array: ${toHexString(fingerprintBytes)}") // [B2, D1, D8, D3, DE, 28, 33, CE]
+
+    // Long:    -3588479540582100558
+    // Binary:  11001110 00110011 00101000 11011110 11010011 11011000 11010001 10110010
+    // Hex:     CE       33       28       DE       D3       D8       D1       B2
+    // Decimal: 206      51       40       222      211      216      209      178
 
     // Serialize and deserialize single messages as bytes
     println("")
@@ -90,7 +103,8 @@ fun main(args: Array<String>) {
     val decoder = User.getDecoder()
     val encoded = encoder.encode(user1)
     val decoded = decoder.decode(encoded)
-    println(encoded)
+
+    println(toHexString(toByteArray(encoded)))
     println(decoded)
 
     // As the writer schema itself isn't available alongside a message, we are not able to decode the message unless
@@ -194,4 +208,19 @@ fun main(args: Array<String>) {
     //
     // val nextRecord = avroParquetReader.read()
     // println(nextRecord)
+}
+
+fun toByteArray(byteBuffer: ByteBuffer): ByteArray {
+    val bytes = ByteArray(byteBuffer.remaining())
+    byteBuffer.get(bytes, 0, bytes.size)
+    byteBuffer.rewind()
+    return bytes
+}
+
+fun toHexString(byteArray: ByteArray): List<String> {
+    return byteArray.map { String.format("%02X", it) }
+}
+
+fun toBinaryString(long: Long): String {
+    return long.toULong().toString(2)
 }
